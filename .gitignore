@@ -1,0 +1,105 @@
+# ---- C / C++ build artifacts ----
+*.o
+*.obj
+*.ko
+*.lo
+*.slo
+*.a
+*.la
+*.lai
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+*.gch
+*.pch
+*.d
+
+key.txt
+
+# Binaries without extensions are common in C — uncomment and list yours:
+./particles
+bin/
+
+# ---- Build directories ----
+build/
+Build/
+cmake-build-*/
+out/
+_deps/
+
+# ---- CMake ----
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+CTestTestfile.cmake
+
+# ---- Meson / Ninja / autotools ----
+builddir/
+.ninja_deps
+.ninja_log
+*.ninja
+config.status
+config.log
+autom4te.cache/
+
+# ---- Debug / profiling ----
+*.dSYM/
+*.su
+*.idb
+*.pdb
+core
+vgcore.*
+perf.data*
+callgrind.out.*
+*.gcda
+*.gcno
+*.gcov
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+.venv/
+venv/
+env/
+.Python
+pip-log.txt
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.coverage
+htmlcov/
+*.pyd
+
+# ---- Editors / OS ----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+.cache/
+.clangd/
+
+# ---- Simulation output (adjust to taste) ----
+*.log
+data/
+output/
+frames/
+*.mp4
+*.csv
+particle
+particle
+key.txt
+main
+out
