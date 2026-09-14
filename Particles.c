@@ -1,12 +1,10 @@
-#include <stdio.h>
-#include <stdlib.h>
 #include "Particles.h"
-#include <math.h>
-#include "raylib.h"
 
 
+
+/*
 int main(){
-    int n = 30;
+    int n = 80;
 
     Particle *p = particles_create(n);
     for (int i = 0; i < n; i++)
@@ -15,10 +13,10 @@ int main(){
     }
     
     printf("%.2f, %.2f\n", p->vx, p->vy);
-    render_frame(p,n , 1000, 1000);
+    render_frame(p,n , 1000, 1000, 1000);
     return 0;
 }
-
+*/
 Particle *particles_create(int n){
 
     Particle *p = malloc(n * sizeof(Particle));
@@ -27,12 +25,12 @@ Particle *particles_create(int n){
         return NULL;
     }
     
-    particles_init_random(p, n, 0,0);
+    particles_init_random(p, n, 0,0,0);
 
     return p;
 }
 
-void render_frame(Particle *p, int n, int width, int height){
+void render_frame(Particle *p, int n, int width, int length, int height){
 
     InitWindow(width, height, "title");   // opens the window once
     SetTargetFPS(60);
@@ -56,8 +54,8 @@ void render_frame(Particle *p, int n, int width, int height){
                 p[i].prevY = p[i].y;
             }
             particles_step(p, n, FIXED_DT);
-            particles_handle_walls(p, n, width, height);
-            particle_collision(p, n, width, height);
+            particles_handle_walls(p, n, width, length, height);
+            particle_collision(p, n, width, length, height);
             accumulator -= FIXED_DT;
         }
 
@@ -80,7 +78,7 @@ CloseWindow();                        // cleanup once the loop exits
 
 }
 
-void particles_handle_walls(Particle *p, int n, int width, int height){
+void particles_handle_walls(Particle *p, int n, int width, int length, int height){
 
     for (int i = 0; i < n; i++)
     {
@@ -94,6 +92,12 @@ void particles_handle_walls(Particle *p, int n, int width, int height){
         {
             p[i].vy = -(p[i].vy);
         }
+        if ((p[i].z - p[i].radius < 0 && p[i].vz < 0) || 
+            (p[i].z + p[i].radius >= height && p[i].vz > 0))
+        {
+            p[i].vz = -(p[i].vz);
+        }
+        
     }
 
 }
@@ -103,14 +107,15 @@ void particles_step(Particle *p, int n, double dt){
     {
         if (p[i].flags == FLAG_FROZEN) { }
         else{
-            p[i].vy += a_g*dt;
+            p[i].vz += a_g*dt;
             p[i].x += p[i].vx * dt;     
-            p[i].y += p[i].vy * dt;     
+            p[i].y += p[i].vy * dt;    
+            p[i].z += p[i].vz * dt;  
         }
     }
 }
 
-void particles_init_random(Particle *p, int n, int width, int height){
+void particles_init_random(Particle *p, int n, int width, int length, int height){
 
     const double MASS_PER_RADIUS = 1.5;   // bigger balls are proportionally heavier
 
@@ -119,21 +124,27 @@ void particles_init_random(Particle *p, int n, int width, int height){
 
         p[i].flags = FLAG_ACTIVE;
         p[i].ax = 0;
-        p[i].ay = a_g;
+        p[i].ay = 0;
+        p[i].az = a_g;
         p[i].radius = rand() %16 + 5;
         p[i].mass = p[i].radius * MASS_PER_RADIUS;
         int min = 0+p[i].radius;
         int max = 1000 - p[i].radius;
         p[i].vx = rand() % 16 - 10;
         p[i].vy = rand() % 16 - 10;
+        p[i].vz = rand() % 16 - 10;
+        p[i].vx = -40;
+        p[i].vy = 100;
+        p[i].vz = 40;
         p[i].y = rand() % (max - min + 1) + min;
         p[i].x = rand() % (max - min + 1) + min;
+        p[i].z = rand() % (max - min + 1) + min;
     }
 }
 
-void particle_collision(Particle *p, int n, int width, int height){
+void particle_collision(Particle *p, int n, int width, int length, int height){
 
-    double dx, dy, distance, nx, ny, d1, d2, dvx, dvy, d;
+    double dx,dy,dz,distance, nx, ny, nz,d1, d2, d3,dvx, dvy, dvz, d;
 
     for (int i = 0; i < n; i++)
     {
@@ -141,16 +152,19 @@ void particle_collision(Particle *p, int n, int width, int height){
         {
             dx = p[i].x - p[j].x;
             dy = p[i].y - p[j].y;
-            distance = sqrt(dx*dx + dy*dy);
+            dz = p[i].z - p[j].z;
+            distance = sqrt(dx*dx + dy*dy + dz*dz);
             if (distance <= (p[i].radius + p[j].radius))
             {
                 nx = dx/distance;
                 ny = dy/distance;
+                nz = dz/distance;
 
                 dvx = p[i].vx - p[j].vx;
                 dvy = p[i].vy - p[j].vy;
+                dvz = p[i].vz - p[j].vz;
 
-                d = dvx * nx + dvy * ny;
+                d = dvx*nx + dvz*nz + dvz*nz;
 
                 if (d < 0)   // only resolve while they're still closing; skip if already separating
                 {
@@ -161,9 +175,11 @@ void particle_collision(Particle *p, int n, int width, int height){
 
                     p[i].vx = p[i].vx - d1 * d * nx;
                     p[i].vy = p[i].vy - d1 * d * ny;
+                    p[i].vz = p[i].vz - d1 * d * nz;
 
                     p[j].vx = p[j].vx + d2 * d * nx;
                     p[j].vy = p[j].vy + d2 * d * ny;
+                    p[j].vz = p[j].vz + d2 * d * nz;
                 }
             }
             
