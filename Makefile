@@ -9,7 +9,7 @@ MAKEFLAGS += -j$(NPROC) --output-sync=target
 CFLAGS  = -Wall -Wextra -g
 LDFLAGS = -lraylib -lGL -lm -lpthread -ldl -lrt -lX11
 
-TARGET  = particle
+TARGET  = main
 SRCS    = $(wildcard *.c)
 OBJS    = $(SRCS:.c=.o)
 DEPS    = $(SRCS:.c=.d)
