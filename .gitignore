@@ -20,6 +20,8 @@
 
 key.txt
 
+worktree-commands.txt
+
 # Binaries without extensions are common in C — uncomment and list yours:
 ./particles
 bin/
@@ -81,6 +83,7 @@ htmlcov/
 *.pyd
 
 # ---- Editors / OS ----
+.claude/
 .vscode/
 .idea/
 *.swp
