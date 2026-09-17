@@ -8,27 +8,9 @@ int main(){
     render_frame3D(p, 80, 1000, 1000, 1000); 
     particles_destroy3D(p);
 
-    /*
-    double biggest = 0, temp;
-    for (int i = 0; i < 10; i++) {
-    printf("Particle %d:\n", i);
-    printf("  Position:   x = %f, y = %f\n", p[i].x, p[i].y);
-    printf("  Velocity:   vx = %f, vy = %f\n", p[i].vx, p[i].vy);
-    printf("  Radius:     %f\n", p[i].radius);
-    printf("  Mass:       %f\n", p[i].mass);
-    printf("  Accel:      ax = %f, ay = %f\n", p[i].ax, p[i].ay);
-    printf("  Prev Pos:   x = %f, y = %f\n", p[i].prevX, p[i].prevY);
-    printf("  Flags:      %u\n", p[i].flags);
-    printf("  Velocity:   %f\n", p[i].velocity);
-    printf("\n");
-
-    
-    if (p[i].velocity > biggest)
+    for (int i = 0; i < 80; i++)
     {
-        biggest = p[i].velocity;
+        printf("test\n");
     }
-}
-    printf("%.3f\n", biggest);
-    */
     return 0;
 }
