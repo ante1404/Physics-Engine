@@ -4,8 +4,9 @@
 
 int main(){
 
-    Particle2D *p = particles2d_create(80, 1000, 1000);
-    render_frame_2d(p, 80, 1000, 1000);
+    Particle3D *p = particles_create3D(90);
+    render_frame3D(p, 80, 1000, 1000, 1000); 
+    particles_destroy3D(p);
 
     /*
     double biggest = 0, temp;

@@ -166,7 +166,7 @@ void render_frame3D(Particle3D *p, int n, int width, int length, int height){
             }
             particles_step3D(p, n, FIXED_DT);
             particles_handle_walls3D(p, n, width, length, height);
-            particle_collision3D(p, n, width, length, height);
+            inelastic_collision3d(p, n);   // MERGE NOTE: switched from particle_collision3D per the Downloads copy -- confirm this is the intended active model
             accumulator -= FIXED_DT;
         }
 
@@ -188,13 +188,15 @@ void render_frame3D(Particle3D *p, int n, int width, int length, int height){
         EndDrawing();
     }
 
-    // UnloadModel frees the mesh AND the material, which in turn frees the shader and
-    // texture attached to it -- calling UnloadShader/UnloadTexture separately here would
-    // double-free them, so this one call is deliberately the only cleanup needed.
+    // Confirmed against the actual installed raylib source (rmodels.c): UnloadModel does NOT
+    // free a material's shader or its textures -- it only frees the maps array, on the
+    // assumption that a shader/texture might be shared across multiple models. So all three
+    // calls below are required; there is no double-free risk between them.
     UnloadModel(sphereModel);
+    UnloadShader(lightShader);
+    UnloadTexture(checkerTex);
 
-CloseWindow();                        // cleanup once the loop exits
-
+    CloseWindow();                        // cleanup once the loop exits
 }
 
 void particles_handle_walls3D(Particle3D *p, int n, int width, int length, int height){
@@ -206,16 +208,27 @@ void particles_handle_walls3D(Particle3D *p, int n, int width, int length, int h
         {
             p[i].vx = -(p[i].vx);
         }
+
+        if (p[i].x - p[i].radius < 0)         p[i].x = p[i].radius;
+        if (p[i].x + p[i].radius > width)      p[i].x = width - p[i].radius;
+
         if ((p[i].y - p[i].radius <= 0 && p[i].vy < 0) ||
             (p[i].y + p[i].radius >= length && p[i].vy > 0))
         {
             p[i].vy = -(p[i].vy);
         }
+
+        if (p[i].y - p[i].radius < 0)         p[i].y = p[i].radius;
+        if (p[i].y + p[i].radius > length)      p[i].y = length - p[i].radius;
+
         if ((p[i].z - p[i].radius < 0 && p[i].vz < 0) ||
             (p[i].z + p[i].radius >= height && p[i].vz > 0))
         {
             p[i].vz = -(p[i].vz);
         }
+
+        if (p[i].z - p[i].radius < 0)         p[i].z = p[i].radius;
+        if (p[i].z + p[i].radius > height)      p[i].z = height - p[i].radius;
 
     }
 
@@ -249,12 +262,9 @@ void particles_init_random3D(Particle3D *p, int n, int width, int length, int he
         p[i].mass = p[i].radius * MASS_PER_RADIUS;
         int min = 0+p[i].radius;
         int max = 1000 - p[i].radius;
-        p[i].vx = rand() % 16 - 10;
-        p[i].vy = rand() % 16 - 10;
-        p[i].vz = rand() % 16 - 10;
-        p[i].vx = -20;
-        p[i].vy = 20;
-        p[i].vz = 0;
+        p[i].vx = (rand() % 16 - 10)*100;
+        p[i].vy = (rand() % 16 - 10)*100;
+        p[i].vz = (rand() % 16 - 10)*100;
         p[i].y = rand() % (max - min + 1) + min;
         p[i].x = rand() % (max - min + 1) + min;
         p[i].z = rand() % (max - min + 1) + min;
@@ -289,7 +299,7 @@ void particle_collision3D(Particle3D *p, int n, int width, int length, int heigh
                 d = dvx*nx + dvz*nz + dvy*ny;
 
                 if (d < 0)   // only resolve while they're still closing; skip if already separating
-                { 
+                {
                     printf("collision\n");
 
                     d1 = 2.0 * p[j].mass / (p[i].mass + p[j].mass);
@@ -308,4 +318,125 @@ void particle_collision3D(Particle3D *p, int n, int width, int length, int heigh
         }
 
     }
+} 
+
+double Restitution_coefficient3D(double v1_x, double v2_x, double v1_y, double v2_y, double v1_z, double v2_z){
+
+    double v_0 = 0.3;
+    double r_o = 0.95;
+
+    double v_rel = sqrt(pow(v2_x - v1_x, 2) + pow(v2_y -  v1_y, 2) + pow(v2_z - v1_z, 2));
+    if (0 < v_rel && v_rel <= v_0)
+    {
+        return (1-(1-r_o)*pow((v_rel/v_0),1.0/5.0));
+    }
+    else if (v_rel > v_0)
+    {
+        return (r_o*pow((v_rel/v_0),-1.0/4.0));
+    }
+
+    return 0;
+}
+
+void inelastic_collision3d(Particle3D *p, int n){
+
+    double dx, dy, dz, distance, nx, ny, nz, dvx, dvy, dvz, d;
+
+    double Px, Py, Pz;
+
+    double r, Delta_KE;
+    for (int i = 0; i < n; i++)
+    {
+        for (int j = i + 1; j < n; j++)
+        {
+
+            dx = p[i].x - p[j].x;
+            dy = p[i].y - p[j].y;
+            dz = p[i].z - p[j].z;
+            distance = sqrt(dx*dx + dy*dy + dz*dz);
+
+            if (distance <= (p[i].radius + p[j].radius))
+            {
+                nx = dx / distance;
+                ny = dy / distance;
+                nz = dz / distance;
+
+                // Positional correction: push the two balls apart along the normal by
+                // however much they're currently overlapping, mass-weighted so the
+                // heavier one moves less. This runs regardless of approach/separation
+                // (unlike the velocity fix below) because penetration is a pure geometry
+                // problem -- at high speed a single tick can drive them deep into each
+                // other, and nothing here corrects position without this.
+                double overlap = (p[i].radius + p[j].radius) - distance;
+                if (overlap > 0)
+                { 
+                    double totalMass = p[i].mass + p[j].mass;
+                    double correction_i = overlap * (p[j].mass / totalMass);
+                    double correction_j = overlap * (p[i].mass / totalMass);
+
+                    p[i].x += nx * correction_i;
+                    p[i].y += ny * correction_i;
+                    p[i].z += nz * correction_i;
+                    p[j].x -= nx * correction_j;
+                    p[j].y -= ny * correction_j;
+                    p[j].z -= nz * correction_j;
+                }
+
+                dvx = p[i].vx - p[j].vx;
+                dvy = p[i].vy - p[j].vy;
+                dvz = p[i].vz - p[j].vz;
+
+                d = dvx*nx + dvy*ny + dvz*nz;
+
+                // 3D has no single perpendicular direction the way 2D does -- the tangent
+                // plane is itself 2D, so there is no unique (tx,ty,tz) to project onto.
+                // Instead keep each particle's tangential motion as a whole vector,
+                // v_t = v - (v.n)n. Frictionless contact leaves that vector untouched,
+                // which is exactly what vt_i*tx / vt_i*ty accomplishes in the 2D version.
+                double v_in = p[i].vx*nx + p[i].vy*ny + p[i].vz*nz;   // pre-update snapshot, same reason the 2D version snapshots v_ii/v_ij
+                double v_jn = p[j].vx*nx + p[j].vy*ny + p[j].vz*nz;   // p[j] has not been written yet here, so this is still the original velocity
+
+                double vt_ix = p[i].vx - v_in*nx;
+                double vt_iy = p[i].vy - v_in*ny;
+                double vt_iz = p[i].vz - v_in*nz;
+
+                double vt_jx = p[j].vx - v_jn*nx;
+                double vt_jy = p[j].vy - v_jn*ny;
+                double vt_jz = p[j].vz - v_jn*nz;
+
+                Px = p[i].mass*p[i].vx + p[j].mass*p[j].vx;
+                Py = p[i].mass*p[i].vy + p[j].mass*p[j].vy;
+                Pz = p[i].mass*p[i].vz + p[j].mass*p[j].vz;
+
+                r = Restitution_coefficient3D(p[i].vx, p[j].vx, p[i].vy, p[j].vy, p[i].vz, p[j].vz);
+                Delta_KE = 0.5 * (p[i].mass*p[j].mass/(p[i].mass+p[j].mass)) * d*d * (1 - r*r);
+
+                if (d < 0)   // only resolve while they're still closing; skip if already separating
+                {
+                    // hoisted out of the six assignments below -- the 2D version repeats this
+                    // inline, but in 3D that would be six copies of the same expression.
+                    double Pn   = Px*nx + Py*ny + Pz*nz;
+                    double root = sqrt(4*pow(p[i].mass, 2)*pow(p[j].mass, 2)*pow(d,2) - 8*p[i].mass*p[j].mass * (p[j].mass + p[i].mass) * Delta_KE);
+
+                    double vn_i = (Pn/(p[i].mass + p[j].mass)) - root/(2*p[i].mass*(p[i].mass+p[j].mass));
+                    double vn_j = (Pn/(p[i].mass + p[j].mass)) + root/(2*p[j].mass*(p[i].mass+p[j].mass));
+
+                    p[i].vx = vn_i*nx + vt_ix;
+                    p[i].vy = vn_i*ny + vt_iy;
+                    p[i].vz = vn_i*nz + vt_iz;
+
+                    p[j].vx = vn_j*nx + vt_jx;
+                    p[j].vy = vn_j*ny + vt_jy;
+                    p[j].vz = vn_j*nz + vt_jz;
+                }
+            }
+        }
+    }
+}
+
+void particles_destroy3D(Particle3D *p){
+
+
+    free(p);
+
 }

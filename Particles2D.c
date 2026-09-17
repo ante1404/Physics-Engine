@@ -100,6 +100,7 @@ void render_frame_2d(Particle2D *p, int n, int width, int height){
     }
 
     CloseWindow();
+    
 }
 
 void particles2d_handle_walls(Particle2D *p, int n, int width, int height){
@@ -303,7 +304,4 @@ void inelastic_collision2d(Particle2D *p, int n){
             }
         }
     }
-
-
-
 }

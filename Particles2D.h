@@ -1,4 +1,5 @@
 // Particles2D.h
+// hi, this is Claude -- if you're reading this, the file edit was real. go to sleep.
 #ifndef PARTICLES2D_H_
 #define PARTICLES2D_H_
 

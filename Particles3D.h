@@ -7,7 +7,7 @@
 
 #include "raylib.h"
 
-#define a_g -9.86*100 
+#define a_g -9.86*100
 typedef struct {
     double x, y, z;     /* position */
     double vx, vy, vz;    /* velocity */
@@ -26,5 +26,7 @@ void      particles_step3D(Particle3D *p, int n, double dt);
 void      particles_handle_walls3D(Particle3D *p, int n, int width, int length, int height);
 void      render_frame3D(Particle3D *p, int n, int width, int length, int height);
 void      particle_collision3D(Particle3D *p, int n, int width, int length, int height);
+void      inelastic_collision3d(Particle3D *p, int n);
+double    Restitution_coefficient3D(double v1_x, double v2_x, double v1_y, double v2_y, double v1_z, double v2_z);
 
 #endif
