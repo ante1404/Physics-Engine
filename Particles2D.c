@@ -1,4 +1,5 @@
 #include "Particles2D.h"
+#include "Vector.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -34,10 +35,13 @@ void render_frame_2d(Particle2D *p, int n, int width, int height){
     for (int i = 0; i < n; i++) {          // seed prevX/prevY so frame 1 doesn't interpolate from garbage
         p[i].prevX = p[i].x;
         p[i].prevY = p[i].y;
+        //p[i].Initial.x = (float)p[i].prevX;
+        //p[i].Initial.y = (float)p[i].prevY;
     }
-
+    
     while (!WindowShouldClose()) {        // runs every frame until you hit ESC or close the window
 
+        
         double frameTime = GetFrameTime();
         if (frameTime > 0.25) frameTime = 0.25;   // clamp huge stalls so physics doesn't try to "catch up" forever
         accumulator += frameTime;
@@ -45,7 +49,7 @@ void render_frame_2d(Particle2D *p, int n, int width, int height){
         while (accumulator >= FIXED_DT) {
             for (int i = 0; i < n; i++) {          // remember "before" so we can blend toward "after" when rendering
                 p[i].prevX = p[i].x;
-                p[i].prevY = p[i].y;
+                p[i].prevY = p[i].y;     
             }
             particles2d_step(p, n, FIXED_DT);
             particles2d_handle_walls(p, n, width, height);
@@ -83,7 +87,22 @@ void render_frame_2d(Particle2D *p, int n, int width, int height){
                             (int)((float)p[i].radius * 1.1f), (int)((float)p[i].radius * 0.35f),
                             Fade(BLACK, shadowAlpha));
             }
+            Vector2 staPos = p[i].Initial;
+            
+            float dx = (float)screenX - staPos.x;
+            float dy = (float)screenY - staPos.y;
+            float distance = sqrtf(dx * dx + dy * dy);
 
+            Vector2 endPos = staPos; // fallback if distance is 0
+            if (distance > 0.0f) {
+                endPos.x = (float)screenX - (dx / distance) * (float)p[i].radius;
+                endPos.y = (float)screenY - (dy / distance) * (float)p[i].radius;
+            }
+
+            DrawLineEx(staPos, endPos, 2.0f, RED);
+
+            float angle = atan2f(dy, dx) * (180.0f / PI);
+            DrawPoly(endPos, 3, 5.0, angle, RED);
             DrawCircle((int)screenX, (int)screenY, (float)p[i].radius, p[i].color);
 
             // Small offset highlight simulating an overhead light source -- the 2D stand-in
@@ -118,10 +137,20 @@ void particles2d_handle_walls(Particle2D *p, int n, int width, int height){
         if (p[i].x - p[i].radius < 0)         p[i].x = p[i].radius;
         if (p[i].x + p[i].radius > width)      p[i].x = width - p[i].radius;
 
-        if ((p[i].y - p[i].radius <= 0 && p[i].vy < 0) ||
-            (p[i].y + p[i].radius >= height && p[i].vy > 0))
+        // The ball has sunk `depth` past the wall by the time we notice. Clamping y back
+        // without touching speed would add m*|a|*depth of free potential energy every bounce.
+        // Energy conservation (0.5*v^2 - a*y = const) gives the speed it has at the wall itself.
+        if (p[i].y - p[i].radius <= 0 && p[i].vy < 0)
         {
-            p[i].vy = -(p[i].vy);
+            double depth = p[i].radius - p[i].y;
+            double v2 = p[i].vy * p[i].vy + 2.0 * a_g * depth;
+            p[i].vy = sqrt(v2 > 0.0 ? v2 : 0.0);
+        }
+        else if (p[i].y + p[i].radius >= height && p[i].vy > 0)
+        {
+            double depth = p[i].y + p[i].radius - height;
+            double v2 = p[i].vy * p[i].vy - 2.0 * a_g * depth;
+            p[i].vy = -sqrt(v2 > 0.0 ? v2 : 0.0);
         }
         if (p[i].y - p[i].radius < 0)          p[i].y = p[i].radius;
         if (p[i].y + p[i].radius > height)      p[i].y = height - p[i].radius;
@@ -129,14 +158,15 @@ void particles2d_handle_walls(Particle2D *p, int n, int width, int height){
 }
 
 void particles2d_step(Particle2D *p, int n, double dt){
+    
     for (int i = 0; i < n; i++)
     {
         if (p[i].flags & FLAG_FROZEN) continue;
-
-        p[i].vy += a_g * dt;
         p[i].x  += p[i].vx * dt;
-        p[i].y  += p[i].vy * dt;
+        p[i].y  += p[i].vy * dt + 0.5 * a_g * dt * dt;
+        p[i].vy += (a_g * dt);
     }
+    
 }
 
 void particles2d_init_random(Particle2D *p, int n, int width, int height){
@@ -147,7 +177,7 @@ void particles2d_init_random(Particle2D *p, int n, int width, int height){
     {
         p[i].flags  = FLAG_ACTIVE;
         p[i].ax     = 0;
-        p[i].ay     = a_g;
+        p[i].ay     = 0;
         p[i].radius = (rand() % 16 + 5);
         p[i].mass   = p[i].radius * MASS_PER_RADIUS;
 
@@ -158,12 +188,19 @@ void particles2d_init_random(Particle2D *p, int n, int width, int height){
 
         p[i].x = rand() % (maxX - minX + 1) + minX;
         p[i].y = rand() % (maxY - minY + 1) + minY;
+        
+        p[i].Initial.x = (float)p[i].x;
+        p[i].Initial.y = ((float)height - (float)p[i].y);
 
-        p[i].vx = (rand() % 16 - 10)*100;
-        p[i].vy = (rand() % 16 - 10)*100;
+        printf("Particle %d: Initial Position = (%f, %f)\n", i, p[i].Initial.x, p[i].Initial.y);
+  
+        //p[i].vx = (rand() % 16 - 10)*100;
+        //p[i].vy = (rand() % 16 - 10)*100; 
 
-        //p[i].vx = 0;
-        //p[i].vy = 0;
+        p[i].vx = 00;
+        p[i].vy = 00;
+
+
         p[i].velocity = sqrt(p[i].vx*p[i].vx + p[i].vy*p[i].vy);
 
         Color palette[] = { RED, ORANGE, YELLOW, GREEN, SKYBLUE, PURPLE };

@@ -12,6 +12,7 @@
 
 typedef struct {
     double x, y;           /* position */
+    Vector2 Initial;        /* Initial position */
     double vx, vy;          /* velocity */
     double radius;
     double mass;
